@@ -1,0 +1,53 @@
+version: 2.1
+
+filters_only_main: &filters_only_main
+  filters:
+    branches:
+      only: main
+
+executors:
+  node18:
+    working_directory: ~/project/build
+    docker:
+      - image: cimg/node:18.17.1
+
+jobs:
+  build:
+    executor: node18
+    steps:
+      - run:
+          name: Run build
+          command: npm run build
+
+  test:
+    executor: node18
+    steps:
+      - checkout
+      - run:
+          name: Run tests
+          command: npm run test
+
+  publish:
+    executor: node18
+    steps:
+      - run:
+          name: Set npm credentials
+          command: echo "//registry.npmjs.org/:_authToken=$NPM_AUTH_TOKEN" > ~/.npmrc
+      - run:
+          name: Bump version number
+          command: npm version ${CIRCLE_TAG} --no-git-tag-version
+      - run:
+          name: Publish to npm registry
+          command: npm publish --access=public
+workflows:
+  build-and-deploy:
+    jobs:
+      - test:
+          <<: *filters_only_main
+      - build:
+          requires:
+            - test
+      - publish:
+          context: npm-publish-token
+          requires:
+            - build
